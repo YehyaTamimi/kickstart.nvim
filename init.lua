@@ -89,16 +89,30 @@ P.S. You can delete this when you're done too. It's your config now! :)
 --  NOTE: Must happen before plugins are loaded (otherwise wrong leader will be used)
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
-vim.api.nvim_create_autocmd({ 'BufWritePre' }, {
+vim.api.nvim_create_autocmd({ 'BufWritePost' }, {
   pattern = { '*.js', '*.ts', '*.jsx', '*.tsx' },
   callback = function()
     local file = vim.fn.expand '%:p'
-    local result = vim.fn.system('npx prettier --write ' .. file)
-    -- Update the buffer with the newly formatted file content
+    vim.fn.system('npx prettier --write ' .. file)
     local formatted = vim.fn.readfile(file)
     vim.api.nvim_buf_set_lines(0, 0, -1, false, formatted)
   end,
 })
+-- Silence the specific position encoding message
+local notify_original = vim.notify
+vim.notify = function(msg, ...)
+  if
+    msg
+    and (
+      msg:match 'position_encoding param is required'
+      or msg:match 'Defaulting to position encoding of the first client'
+      or msg:match 'multiple different client offset_encodings'
+    )
+  then
+    return
+  end
+  return notify_original(msg, ...)
+end
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = true
@@ -271,9 +285,12 @@ require('lazy').setup({
   -- add this to your lua/plugins.lua, lua/plugins/init.lua,  or the file you keep your other plugins:
   {
     'numToStr/Comment.nvim',
-    opts = {
-      -- add any options here
-    },
+    dependencies = 'JoosepAlviste/nvim-ts-context-commentstring',
+    config = function()
+      require('Comment').setup {
+        pre_hook = require('ts_context_commentstring.integrations.comment_nvim').create_pre_hook(),
+      }
+    end,
   },
   {
     'stevearc/oil.nvim',
@@ -692,7 +709,7 @@ require('lazy').setup({
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
         -- clangd = {},
-        -- gopls = {},
+        gopls = {},
         pyright = {},
         -- rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
@@ -793,6 +810,7 @@ require('lazy').setup({
         -- Conform can also run multiple formatters sequentially
         python = { 'isort', 'black' },
         --
+        go = { 'goimports', 'gofmt' },
         -- You can use 'stop_after_first' to run the first available formatter from the list
         javascript = { 'prettier', stop_after_first = true },
       },
